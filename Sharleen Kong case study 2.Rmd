@@ -1,0 +1,98 @@
+---
+title: "Case study 2"
+author: "Sharleen Kong"
+date: '2022-04-10'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+**Case study 2**
+```{r}
+customer <- read.csv("casestudy.csv")
+
+# Total revenue for current year
+customer_rev <- customer %>%
+group_by(year) %>%
+summarize(total_revenue = sum(net_revenue))
+
+customer_rev
+# also shows revenue from existing customers current/prior year
+
+
+```
+
+```{r}
+# New Customer Revenue e.g. new customers not present in previous year only
+customer_new <- customer %>%
+group_by(customer_email) %>%
+mutate(first_sale=min(year))%>%
+filter(year == first_sale) %>%
+ungroup()
+
+new_rev <- customer_new %>%
+group_by(year) %>%
+summarize(total_revenue = sum(net_revenue))
+new_rev
+
+# 2015 data does not make sense here since we do not have data for 2014 
+```
+
+```{r}
+# 2015-2016 growth
+growth15_16 <- customer_rev$total_revenue[which(customer_rev$year == 2016)] - customer_rev$total_revenue[which(customer_rev$year == 2015)]
+growth15_16
+
+# 2016-2017 growth
+growth16_17 <- customer_rev$total_revenue[which(customer_rev$year == 2017)] - customer_rev$total_revenue[which(customer_rev$year == 2016)]
+growth16_17
+
+# revenue lost from attrition
+#2015 - 2016
+growth15_16/customer_rev$total_revenue[which(customer_rev$year == 2015)]
+#2016-2017
+growth16_17/customer_rev$total_revenue[which(customer_rev$year == 2016)]
+```
+
+```{r}
+# Total customer current/prior year
+customer_count <- customer %>%
+group_by(year) %>%
+summarize(count = n())
+customer_count
+```
+
+```{r}
+# New customers
+count_new <- customer_new %>%
+group_by(year) %>%
+summarize(count = n())
+count_new
+# 2015 not make sense since we do not have info for 2014.
+```
+
+```{r}
+#lost customers in 2016
+customer_lost16 <- customer %>%
+group_by(customer_email) %>%
+mutate(last_sale = max(year))%>%
+  filter(last_sale == 2015) %>%
+ungroup()%>%
+  group_by(year)%>%
+summarize(count = n())
+customer_lost16
+
+#lost customers in 2017
+customer_lost17 <- customer %>%
+group_by(customer_email) %>%
+mutate(last_sale = max(year))%>%
+filter(last_sale == 2016) %>%
+  ungroup()%>%
+  group_by(year)%>%
+  filter(year == 2016)%>%
+summarize(count = n())
+customer_lost17
+```
