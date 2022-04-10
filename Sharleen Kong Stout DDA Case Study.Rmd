@@ -1,0 +1,133 @@
+---
+title: "Stout DDA Intern Case Study"
+author: "Sharleen Kong"
+date: '2022-04-09'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Case Study 1**
+```{r,include=FALSE}
+load("loans_full_schema.rda")
+library(tidyverse)
+```
+
+**Description**
+This data set represents thousands of loans made through the Lending Club platform. The dataset records information of the person who is getting the loan (e.g. job title, job years, annual income, etc.) as well as their credit history such as total number of credit lines, Delinquencies, etc. In addition, the dataset also includes the information of the loan received by each person, including loan amount, term, interest rate, etc. This dataset helps to learn the relationship between a person's credit history and the loan they can receive, thus helps to better predict the lending decision.
+
+**Issues with this dataset**
+There are many missing data in some of the columns (e.g. job titles), which will cause problem in the data analysis process.
+
+**Marginal distribution of purpose of loan**
+```{r}
+ggplot(data = loans_full_schema, aes(x = loan_purpose)) +
+geom_bar(fill="darkblue")+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))
+```
+
+From the bar chart above, we observed that most loans are applied for the purpose of debt consolidation, followed by credit card, other, and home improvement.
+
+**Distribution of loan interest rate**
+```{r}
+ggplot(loans_full_schema, aes(x = interest_rate)) +
+geom_histogram(color = "darkblue",fill="darkblue",aes(y = after_stat(density)),bins = 10)+geom_density()
+```
+
+From the histogram above, we can observe that most loans in this data set has interest rate between 5% and 15%.
+
+**Marginal distribution of loan grade given homeownership**
+```{r}
+ggplot(data = loans_full_schema, aes(x = homeownership)) +
+geom_bar(aes(fill=grade))
+```
+
+From the bar chart above, we can see that there is not much differentiation in loan grade among person with different types of homeownership.
+
+**Relationship between annual income and interest rate**
+```{r}
+ggplot(loans_full_schema, aes(x= annual_income,y=interest_rate))+ geom_point(alpha=0.3,color="darkblue")+
+  xlim(c(0,500000))+  # remove some outliers to make pattern more obvious
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+From the scatter plot and the fitted line using linear regression method, we can see that person with higher annual income generally receives a lower interest rate while people with lower income receives higher interest rate.
+
+**Relationship between delinquencies on lines of credit in the last 2 years and interest rate**
+```{r}
+library(ggridges)
+loans_full_schema$delinq_2y <- as.factor(loans_full_schema$delinq_2y)
+ggplot(loans_full_schema, aes(x = interest_rate, y =delinq_2y)) + geom_density_ridges()
+```
+
+From the ridgeline plot, we can observe that fewer delinquencies generally yields a lower interest rate, especially for less than 4 delinquencies.
+
+
+**Create feature set**
+We have to remove rows with empty values here. Also, the last few columns should not be included since they are part of the "loan received", whose interest rate is our prediction task. Also, some of the previous credit history items may be colinear, so we just have to pick one from each category (e.g. delinquencies, credit line num, etc.)
+```{r}
+loans <- loans_full_schema %>%
+dplyr::select(`emp_length`,`annual_income`, `debt_to_income`, `earliest_credit_line`,'total_credit_utilized',"public_record_bankrupt","delinq_2y","inquiries_last_12m","account_never_delinq_percent","num_accounts_120d_past_due","interest_rate") %>%
+  na.omit()
+loans$delinq_2y <- as.numeric(loans$delinq_2y)
+
+```
+
+**Training set and testing set partitioning**
+```{r}
+set.seed(1)
+
+train.index <- sample(row.names(loans), dim(loans)[1]*0.6)
+train.df <- loans[train.index,]
+
+test.index <- setdiff(row.names(loans), train.index)
+test.df <- loans[test.index,]
+```
+
+
+**Linear regression**
+```{r}
+lm_loan <-lm(interest_rate~. ,data = train.df)
+summary(lm_loan)
+
+pred_test <- predict(lm_loan,test.df)
+pred_train <- predict(lm_loan,train.df)
+
+# RMSE in test
+rmse_ols_test <- sqrt(mean((test.df$interest_rate-pred_test)^2)) 
+rmse_ols_test
+
+# RMSE in train
+rmse_ols_train <- sqrt(mean((train.df$interest_rate-pred_train)^2))
+rmse_ols_train
+```
+
+**Regression tree**
+```{r}
+library(rpart)
+library(caret)
+library(rpart.plot)
+set.seed(555)
+
+####  Train the model
+tree.fit <- train(interest_rate ~ ., data=train.df, 
+                   method = 'rpart', 
+                   trControl=trainControl(method = 'cv', number=5),tuneLength = 30)
+rpart.plot(tree.fit$finalModel)
+
+library(forecast)
+
+tree_pred_test <- predict(tree.fit,test.df)
+tree_pred_train <- predict(tree.fit,train.df)
+
+accuracy(tree_pred_test,test.df$interest_rate)
+accuracy(tree_pred_train,train.df$interest_rate)
+
+```
+
+**Test result**
+The RMSE of test set using regression tree is 4.81 while that of linear regression is 4.77. Linear regression has a slightly better performance here.
+
+**Future Improvements**
+In order to increase model accuracy, ensemble models can be used. Also, I assume that there are some degree of colinearity between some variables such as Number of current accounts that are 120 days past due and Number of current accounts that are 30 days past due. To make better models, I can select features more carefully with techniques such as PCA, colinearity matrix and so on to pick the best features.
