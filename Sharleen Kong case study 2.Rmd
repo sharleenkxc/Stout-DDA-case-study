@@ -2,7 +2,9 @@
 title: "Case study 2"
 author: "Sharleen Kong"
 date: '2022-04-10'
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -96,3 +98,18 @@ filter(last_sale == 2016) %>%
 summarize(count = n())
 customer_lost17
 ```
+
+
+**plots**
+```{r}
+ggplot(customer_rev,aes(x = year,y=total_revenue))+geom_bar(stat = "identity",fill="darkblue")
+```
+
+2017 has the highest revenue while 2016 has the lowest revenue.
+
+```{r}
+new_rev$year <- as.factor(new_rev$year)
+ggplot(new_rev[-1,],aes(x = year,y=total_revenue))+geom_bar(stat = "identity",fill="darkblue")+ylab("new customer revenue")
+```
+
+There is a large jump of new customer revenue from 2016 to 2017.
